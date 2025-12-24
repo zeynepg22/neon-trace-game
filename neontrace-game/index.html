@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Flow</title>
+    <style>
+        body {
+            background-color: #050505;
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-h-screen;
+            color: white;
+        }
+        .header { text-align: center; margin-bottom: 20px; }
+        .title {
+            font-size: 42px;
+            font-weight: 900;
+            color: #0ff;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
+            margin: 0;
+        }
+        .desc { color: #555; font-size: 14px; margin-top: 5px; }
+        .game-box {
+            padding: 10px;
+            background-color: #111;
+            border-radius: 15px;
+            border: 1px solid #222;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.1);
+        }
+        #canvas { background-color: #000; display: block; }
+        .stats {
+            margin-top: 30px;
+            display: flex;
+            align-items: center;
+            gap: 50px;
+        }
+        .stat-item { text-align: center; }
+        .stat-label { font-size: 10px; color: #444; text-transform: uppercase; display: block; }
+        .stat-value { font-size: 24px; font-weight: bold; color: #fff; }
+        .btn {
+            padding: 12px 30px;
+            background-color: #088;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            text-transform: uppercase;
+        }
+        .btn:hover { background-color: #0ff; transform: scale(1.05); }
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.9);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background: #111;
+            padding: 50px;
+            border-radius: 20px;
+            border: 2px solid #0ff;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1 class="title">NEON FLOW</h1>
+        <p class="desc">Ok tuşlarıyla hareket et ve tüm alanı boya!</p>
+    </div>
+
+    <div class="game-box">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div class="stats">
+        <div class="stat-item">
+            <span class="stat-label">Seviye</span>
+            <span id="lvl" class="stat-value">1</span>
+        </div>
+        <button class="btn" onclick="reset()">Sıfırla</button>
+        <div class="stat-item">
+            <span class="stat-label">İlerleme</span>
+            <span id="prog" class="stat-value">0%</span>
+        </div>
+    </div>
+
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <h2 style="font-size: 32px; margin-bottom: 10px;">BÖLÜM GEÇİLDİ!</h2>
+            <p style="color: #666; margin-bottom: 30px;">Tüm enerji hatları boyandı.</p>
+            <button class="btn" style="width: 100%;" onclick="next()">Sonraki Bölüm</button>
+        </div>
+    </div>
+
+    <script>
+        const cvs = document.getElementById('canvas');
+        const ctx = cvs.getContext('2d');
+        
+        let cl = 0;
+        let g = [];
+        let p = { x: 1, y: 1 };
+        let cs = 40;
+
+        const lvls = [
+            [
+                [0,0,0,0,0,0,0,0,0,0],
+                [0,1,1,1,1,1,1,1,1,0],
+                [0,1,1,1,1,1,1,1,1,0],
+                [0,1,1,1,1,1,1,1,1,0],
+                [0,1,1,1,1,1,1,1,1,0],
+                [0,1,1,1,1,1,1,1,1,0],
+                [0,0,0,0,0,0,0,0,0,0]
+            ],
+            [
+                [0,0,0,0,0,0,0,0,0,0],
+                [0,1,1,1,0,0,1,1,1,0],
+                [0,1,1,1,0,0,1,1,1,0],
+                [0,1,1,1,1,1,1,1,1,0],
+                [0,1,1,1,0,0,1,1,1,0],
+                [0,1,1,1,0,0,1,1,1,0],
+                [0,0,0,0,0,0,0,0,0,0]
+            ],
+            [
+                [0,0,0,0,0,0,0,0,0,0],
+                [0,1,0,1,0,1,0,1,0,0],
+                [0,1,1,1,1,1,1,1,1,0],
+                [0,0,1,0,1,0,1,0,1,0],
+                [0,1,1,1,1,1,1,1,1,0],
+                [0,1,0,1,0,1,0,1,0,0],
+                [0,0,0,0,0,0,0,0,0,0]
+            ]
+        ];
+
+        function init(idx) {
+            const data = lvls[idx];
+            g = data.map((r, ri) => r.map((c, ci) => {
+                return { t: c, f: false };
+            }));
+
+            for(let ri=0; ri<g.length; ri++){
+                for(let ci=0; ci<g[ri].length; ci++){
+                    if(g[ri][ci].t === 1) {
+                        p.x = ci; p.y = ri;
+                        g[ri][ci].f = true;
+                        ri = 999; break;
+                    }
+                }
+            }
+
+            const sw = Math.min(window.innerWidth - 40, 600);
+            cs = Math.floor(sw / g[0].length);
+            cvs.width = g[0].length * cs;
+            cvs.height = g.length * cs;
+
+            document.getElementById('lvl').innerText = idx + 1;
+            document.getElementById('modal').style.display = 'none';
+            upd();
+            drw();
+        }
+
+        function drw() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, cvs.width, cvs.height);
+
+            g.forEach((r, ri) => {
+                r.forEach((c, ci) => {
+                    const x = ci * cs;
+                    const y = ri * cs;
+
+                    if(c.t === 0) {
+                        ctx.fillStyle = '#111';
+                        ctx.fillRect(x + 1, y + 1, cs - 2, cs - 2);
+                    } else {
+                        ctx.strokeStyle = '#222';
+                        ctx.strokeRect(x, y, cs, cs);
+                        
+                        if(c.f) {
+                            ctx.fillStyle = '#0ff';
+                            ctx.globalAlpha = 0.4;
+                            ctx.fillRect(x + 2, y + 2, cs - 4, cs - 4);
+                            ctx.globalAlpha = 1;
+                        }
+                    }
+                });
+            });
+
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#0ff';
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(p.x * cs + 5, p.y * cs + 5, cs - 10, cs - 10);
+            ctx.shadowBlur = 0;
+        }
+
+        function mv(dx, dy) {
+            let nx = p.x + dx;
+            let ny = p.y + dy;
+
+            if(ny >= 0 && ny < g.length && nx >= 0 && nx < g[0].length && g[ny][nx].t !== 0) {
+                p.x = nx;
+                p.y = ny;
+                g[ny][nx].f = true;
+                drw();
+                upd();
+                chk();
+            }
+        }
+
+        function upd() {
+            let total = 0, filled = 0;
+            g.forEach(r => r.forEach(c => {
+                if(c.t === 1) {
+                    total++;
+                    if(c.f) filled++;
+                }
+            }));
+            document.getElementById('prog').innerText = Math.floor((filled/total)*100) + "%";
+        }
+
+        function chk() {
+            const win = g.every(r => r.every(c => c.t === 0 || c.f));
+            if(win) {
+                setTimeout(() => {
+                    document.getElementById('modal').style.display = 'flex';
+                }, 200);
+            }
+        }
+
+        function reset() { init(cl); }
+        function next() { 
+            cl = (cl + 1) % lvls.length; 
+            init(cl); 
+        }
+
+        window.onkeydown = e => {
+            if(e.key === "ArrowUp") mv(0, -1);
+            if(e.key === "ArrowDown") mv(0, 1);
+            if(e.key === "ArrowLeft") mv(-1, 0);
+            if(e.key === "ArrowRight") mv(1, 0);
+        };
+
+        let ts = null;
+        cvs.ontouchstart = e => ts = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        cvs.ontouchend = e => {
+            if(!ts) return;
+            let dx = e.changedTouches[0].clientX - ts.x;
+            let dy = e.changedTouches[0].clientY - ts.y;
+            if(Math.abs(dx) > Math.abs(dy)) mv(dx > 0 ? 1 : -1, 0);
+            else mv(0, dy > 0 ? 1 : -1);
+            ts = null;
+        };
+
+        window.onload = () => init(0);
+    </script>
+</body>
+</html>
